@@ -1,56 +1,106 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import Message from '../componsnets/chat/Message';
 import ChatInput from '../componsnets/chat/ChatInput';
+import useAxios from '../hooks/useAxios';
 
 export default function Chat() {
-  const [messages, setMessages] = useState([
-    {
-      id: 1,
-      user: 'user',
-      text: 'Et libero accusamus deleniti odit repellat alias, voluptatum repudiandae ad vitae sapiente velit aliquam iusto ut debitis ratione quaerat?',
-    },
-    {
-      id: 2,
-      user: 'assistant',
-      text: `
-# Hello World
+  const { axiosInstance } = useAxios();
+  const messagesEndRef = useRef(null);
+  const messagesRef = useRef(null);
+  const [messages, setMessages] = useState([]);
 
-This is some **Markdown** text to test rendering. Here are a few elements:
+  useEffect(() => {
+    if (messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [messages]);
 
-- **Bold text**: **bold**
-- _Italic text_: *italic*
-- A [link](https://openai.com)
+  const handleChatResponse = async (message) => {
+    const userMsgId = messages.length
+      ? messages[messages.length - 1].id + 1
+      : 1;
 
-## Code Block
+    setMessages((prev) => [
+      ...prev,
+      {
+        id: userMsgId,
+        user: 'user',
+        text: message,
+      },
+    ]);
 
-\`\`\`js
-function greet(name) {
-  console.log(\`Hello, Chat!\`);
-}
-greet("World");
-\`\`\`
+    const assistantMsgId = userMsgId + 1;
+    setMessages((prev) => [
+      ...prev,
+      {
+        id: assistantMsgId,
+        user: 'assistant',
+        text: '',
+      },
+    ]);
 
-### Unordered List
+    try {
+      const response = await fetch(
+        `${axiosInstance.defaults.baseURL}text-to-text`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ text: message }),
+        }
+      );
 
-- Item 1
-- Item 2
-- Item 3
+      if (!response.body) {
+        throw new Error('ReadableStream not supported');
+      }
 
-> This is a blockquote.
-# Example
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder('utf-8');
 
-Inline code: \`const x = 42;\`
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
 
-\`\`\`js
-function greet(name) {
-  console.log(\`Hello, \${name}!\`);
-}
-\`\`\`
+        const decodedChunk = decoder.decode(value, { stream: true });
 
-Enjoy testing Markdown!
-`,
-    },
-  ]);
+        setMessages((prev) => {
+          const updated = [...prev];
+          const index = updated.findIndex((m) => m.id === assistantMsgId);
+          if (index !== -1) {
+            updated[index] = {
+              ...updated[index],
+              text: updated[index].text + decodedChunk,
+            };
+          }
+          return updated;
+        });
+      }
+    } catch (error) {
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: assistantMsgId || Date.now(),
+          user: 'assistant',
+          text: 'Something went wrong while streaming. Please try again.',
+        },
+      ]);
+    }
+  };
+
+  const heightChange = (values) => {
+    if (+values === 200) return 'calc(100vh - 280px)';
+    const height = +values - 64;
+    if (+height < 100) return `calc(100vh - ${150 + +height}px)`;
+    return `calc(100vh - ${150 + +values}px)`;
+  };
+
+  const handleHeightChange = (newInputHeight) => {
+    if (messagesRef.current) {
+      const newHeight = heightChange(newInputHeight);
+      messagesRef.current.style.height = newHeight;
+    }
+  };
 
   return (
     <div className="flex flex-col min-h-screen bg-black/80">
@@ -62,24 +112,18 @@ Enjoy testing Markdown!
       </div>
 
       <div className="max-w-7xl w-full mx-auto px-4 flex flex-col">
-        <div className="overflow-y-auto p-4 chatMessages">
+        {/* Messages container => attach ref */}
+        <div ref={messagesRef} className="overflow-y-auto p-4 chatMessages">
           {messages.map((msg) => (
             <Message key={msg.id} user={msg.user} text={msg.text} />
           ))}
+          <div ref={messagesEndRef} />
         </div>
 
-        {/* Input section */}
+        {/* Pass handleHeightChange callback to ChatInput */}
         <ChatInput
-          onSend={(value) =>
-            setMessages([
-              ...messages,
-              {
-                id: messages?.[messages.length - 1]?.id + 1 || 1,
-                user: 'user',
-                text: value,
-              },
-            ])
-          }
+          onSend={handleChatResponse}
+          heightChange={handleHeightChange}
         />
       </div>
     </div>

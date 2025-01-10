@@ -1,15 +1,13 @@
-// src/hooks/useAxios.js
 import axios from 'axios';
-import { useCallback } from 'react';
 
 const useAxios = () => {
-  // Create instance
   const axiosInstance = axios.create({
-    baseURL: 'https://your-api-url.com', // Replace with your base URL
-    timeout: 10000,
+    baseURL: 'http://localhost:8000/api/v1/',
+    Headers: {
+      'Content-Type': 'application/json',
+    },
   });
 
-  // Optional: Add interceptors
   axiosInstance.interceptors.response.use(
     (response) => response,
     (error) => {
@@ -28,22 +26,7 @@ const useAxios = () => {
     }
   );
 
-  // Example: a method that calls a route using axios
-  const getData = useCallback(
-    async (endpoint) => {
-      try {
-        const { data } = await axiosInstance.get(endpoint);
-        return data;
-      } catch (err) {
-        // Rethrow or handle
-        throw err;
-      }
-    },
-    [axiosInstance]
-  );
-
-  // Return any method you need
-  return { getData, axiosInstance };
+  return { axiosInstance };
 };
 
 export default useAxios;

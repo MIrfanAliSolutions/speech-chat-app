@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
-import { AiOutlineSend } from 'react-icons/ai'; // Optional: an icon for the send button
+import { useState } from 'react';
+import { AiOutlineSend } from 'react-icons/ai';
 
-export default function ChatInput({ onSend }) {
+export default function ChatInput({ onSend, heightChange }) {
   const [message, setMessage] = useState('');
 
   const handleSend = (e) => {
@@ -9,6 +9,26 @@ export default function ChatInput({ onSend }) {
     if (!message.trim()) return;
     onSend(message);
     setMessage('');
+    if (e.target.elements?.userMessage) {
+      e.target.elements.userMessage.style.height = 'auto';
+    }
+  };
+
+  const handleChange = (e) => {
+    const textarea = e.target;
+    setMessage(textarea.value);
+    textarea.style.height = 'auto';
+    const scrollHeight = textarea.scrollHeight;
+    const maxHeight = 200;
+    textarea.style.height = Math.min(scrollHeight, maxHeight) + 'px';
+    heightChange(textarea.style.height?.split('px')[0]);
+  };
+
+  const handleKeyDown = (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleSend(e);
+    }
   };
 
   return (
@@ -17,10 +37,12 @@ export default function ChatInput({ onSend }) {
       className="w-full flex items-center bg-black/50 rounded-2xl"
     >
       <textarea
+        name="userMessage" // easier to access from handleSend if needed
         rows={1}
         value={message}
-        onChange={(e) => setMessage(e.target.value)}
-        className="flex-1 resize-none  p-5 focus:outline-none bg-transparent transition-colors placeholder:text-white text-white scrollbar-thin scrollbar-track-transparent scrollbar-thumb-rounded-md"
+        onChange={handleChange}
+        onKeyDown={handleKeyDown}
+        className="flex-1 resize-none p-5 focus:outline-none bg-transparent placeholder:text-white text-white scrollbar-thin scrollbar-track-transparent scrollbar-thumb-rounded-md max-h-[200px] overflow-y-auto"
         placeholder="Send a message..."
       />
 
